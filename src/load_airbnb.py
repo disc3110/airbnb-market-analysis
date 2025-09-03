@@ -1,3 +1,24 @@
+def find_raw(base):
+    """
+    Return a path in data/raw/ that exists, preferring .csv.gz then .csv.
+    Raises FileNotFoundError with a helpful message if not found.
+    """
+    for ext in (".csv.gz", ".csv"):
+        p = os.path.join(RAW, f"{base}{ext}")
+        if os.path.exists(p):
+            return p
+    raise FileNotFoundError(f"Could not find {base}.csv(.gz) in {RAW}. "
+                            f"Make sure you saved the file as either {base}.csv.gz or {base}.csv")
+
+def intersect_usecols(path, desired):
+    """
+    Some mirrors (e.g., Kaggle) provide a smaller listings.csv without all columns.
+    Intersect desired columns with actual file columns to avoid read_csv errors.
+    """
+    # Read only the header to discover available columns
+    hdr = pd.read_csv(path, nrows=0, compression='infer')
+    available = [c for c in desired if c in hdr.columns]
+    return available
 import os
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -14,25 +35,28 @@ RAW = "data/raw"
 CHUNK = 100_000  # tune if memory is low
 
 def load_listings():
-    path = f"{RAW}/listings.csv.gz"
-    usecols = [
+    path = find_raw("listings")
+    desired = [
         "id","host_id","neighbourhood_cleansed","neighbourhood_group_cleansed",
         "latitude","longitude","room_type","accommodates","bedrooms","beds",
         "price","minimum_nights","number_of_reviews","review_scores_rating"
     ]
+    usecols = intersect_usecols(path, desired)
+    if not usecols:
+        raise ValueError("No expected columns found in listings file. Please download the detailed 'listings.csv.gz' from Inside Airbnb.")
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, low_memory=False, compression="infer", chunksize=CHUNK)):
         df.to_sql("listings", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
         print(f"listings chunk {i} -> {len(df)} rows")
 
 def load_reviews():
-    path = f"{RAW}/reviews.csv.gz"
+    path = find_raw("reviews")
     usecols = ["listing_id","id","date","reviewer_id","reviewer_name","comments"]
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, parse_dates=["date"], low_memory=False, compression="infer", chunksize=CHUNK)):
         df.to_sql("reviews", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
         print(f"reviews chunk {i} -> {len(df)} rows")
 
 def load_calendar():
-    path = f"{RAW}/calendar.csv.gz"
+    path = find_raw("calendar")
     usecols = ["listing_id","date","available","price","adjusted_price","minimum_nights","maximum_nights"]
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, parse_dates=["date"], low_memory=False, compression="infer", chunksize=CHUNK)):
         df.to_sql("calendar", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
