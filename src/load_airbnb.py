@@ -1,8 +1,14 @@
+import os
+import pandas as pd
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
 def find_raw(base):
     """
     Return a path in data/raw/ that exists, preferring .csv.gz then .csv.
     Raises FileNotFoundError with a helpful message if not found.
     """
+    RAW = "data/raw"
     for ext in (".csv.gz", ".csv"):
         p = os.path.join(RAW, f"{base}{ext}")
         if os.path.exists(p):
@@ -19,10 +25,22 @@ def intersect_usecols(path, desired):
     hdr = pd.read_csv(path, nrows=0, compression='infer')
     available = [c for c in desired if c in hdr.columns]
     return available
-import os
-import pandas as pd
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+
+def cast_types(df, mapping):
+    """
+    Cast columns to pandas nullable dtypes so inserts don't fail when floats/NaN
+    are sent to integer columns. Allowed values: 'Int64', 'Float64', 'string'.
+    """
+    for col, dtype in mapping.items():
+        if col not in df.columns:
+            continue
+        if dtype == "Int64":
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        elif dtype == "Float64":
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Float64")
+        elif dtype == "string":
+            df[col] = df[col].astype("string")
+    return df
 
 load_dotenv()
 
@@ -45,21 +63,48 @@ def load_listings():
     if not usecols:
         raise ValueError("No expected columns found in listings file. Please download the detailed 'listings.csv.gz' from Inside Airbnb.")
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, low_memory=False, compression="infer", chunksize=CHUNK)):
-        df.to_sql("listings", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
+        df = cast_types(df, {
+            "id": "Int64",
+            "host_id": "Int64",
+            "accommodates": "Int64",
+            "minimum_nights": "Int64",
+            "number_of_reviews": "Int64",
+            "bedrooms": "Float64",
+            "beds": "Float64",
+            "latitude": "Float64",
+            "longitude": "Float64",
+            # keep price as string; cleaned in transform()
+        })
+        df.to_sql("listings", ENGINE, schema="staging", if_exists="append", index=False)
         print(f"listings chunk {i} -> {len(df)} rows")
 
 def load_reviews():
     path = find_raw("reviews")
     usecols = ["listing_id","id","date","reviewer_id","reviewer_name","comments"]
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, parse_dates=["date"], low_memory=False, compression="infer", chunksize=CHUNK)):
-        df.to_sql("reviews", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
+        df = cast_types(df, {
+            "listing_id": "Int64",
+            "id": "Int64",
+            "reviewer_id": "Int64",
+            "reviewer_name": "string",
+            "comments": "string",
+        })
+        df.to_sql("reviews", ENGINE, schema="staging", if_exists="append", index=False)
         print(f"reviews chunk {i} -> {len(df)} rows")
 
 def load_calendar():
     path = find_raw("calendar")
     usecols = ["listing_id","date","available","price","adjusted_price","minimum_nights","maximum_nights"]
     for i, df in enumerate(pd.read_csv(path, usecols=usecols, parse_dates=["date"], low_memory=False, compression="infer", chunksize=CHUNK)):
-        df.to_sql("calendar", ENGINE, schema="staging", if_exists="append", index=False, method="multi")
+        df = cast_types(df, {
+            "listing_id": "Int64",
+            "minimum_nights": "Int64",
+            "maximum_nights": "Int64",
+            "available": "string",
+            "price": "string",
+            "adjusted_price": "string",
+        })
+        df.to_sql("calendar", ENGINE, schema="staging", if_exists="append", index=False)
         print(f"calendar chunk {i} -> {len(df)} rows")
 
 def transform():
