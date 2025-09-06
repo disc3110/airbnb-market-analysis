@@ -39,6 +39,14 @@ Here are some highlights from the exploratory phase:
 ![Availability Trend](notebooks/dashboards/availability_trend.png)
 ---
 
+## 🖥️ Live Dashboard (Streamlit)
+Interactive filters for neighbourhood, room type, price, and availability.
+Run locally:
+```bash
+streamlit run app.py
+
+---
+
 ## 🛠️ Tech Stack  
 - **Database**: PostgreSQL  
 - **Analysis**: Python (Pandas, SQLAlchemy)  
