@@ -30,13 +30,13 @@ This project analyzes Airbnb data for Vancouver using PostgreSQL + Python.
 Here are some highlights from the exploratory phase:
 
 ### Median Price by Neighbourhood
-![Median Price by Neighbourhood](dashboards/median_price_neighbourhood.png)
+![Median Price by Neighbourhood](notebooks/dashboards/median_price_neighbourhood.png)
 
 ### Median Price by Room Type
-![Median Price by Room Type](dashboards/median_price_roomtype.png)
+![Median Price by Room Type](notebooks/dashboards/median_price_roomtype.png)
 
 ### Availability Trend in 2024
-![Availability Trend](dashboards/availability_trend.png)
+![Availability Trend](notebooks/dashboards/availability_trend.png)
 ---
 
 ## 🛠️ Tech Stack  
